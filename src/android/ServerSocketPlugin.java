@@ -51,21 +51,18 @@ public class ServerSocketPlugin extends CordovaPlugin {
 		try {
 			int port = args.getInt(0);
 
-			if (this.servers.containsKey(port)) {
-				ServerSocket server = this.servers.get(port);
-				this.servers.remove(port);
+			if (servers.containsKey(port)) {
+				ServerSocket server = servers.get(port);
+				servers.remove(port);
 				
-				for (Socket client : this.server_sockets.get(port)) {
-					try { client.close(); } finally {}
+				for (Socket socket : server_sockets.get(port)) {
+					try { socket.close(); } finally {}
 				}
-				this.server_sockets.remove(port);
+				server_sockets.remove(port);
 
 				try { server.close(); } finally {}
 
-				JSONObject event = new JSONObject();
-				event.put("type", "close");
-				event.put("port", port);
-				dispatch(event);
+				dispatchClosed(port);
 			}
 
 			ServerSocket server = new ServerSocket(port);
@@ -73,8 +70,6 @@ public class ServerSocketPlugin extends CordovaPlugin {
 
 			List<Socket> server_sockets = new ArrayList<Socket>();
 			this.server_sockets.put(port, server_sockets);
-
-			Map<String, Socket> _sockets = this.sockets;
 
 			this.executor.submit(new Runnable() {
 				private ExecutorService _executor = Executors.newSingleThreadExecutor();
@@ -87,20 +82,11 @@ public class ServerSocketPlugin extends CordovaPlugin {
 							server_sockets.add(socket);
 
 							String id = guid();
-							_sockets.put(id, socket);
+							sockets.put(id, socket);
 
-							JSONObject event = new JSONObject();
-							event.put("type", "connection");
-							event.put("port", port);
-							JSONObject data = new JSONObject();
-							data.put("id", id);
-							data.put("host", socket.getInetAddress().toString());
-							data.put("port", socket.getPort());
-							event.put("data", data);
+							dispatchConnected(port, id, socket.getInetAddress().toString(), socket.getPort());
 
-							dispatch(event);
-
-							this._executor.submit(new Runnable() {
+							_executor.submit(new Runnable() {
 								@Override
 								public void run() {
 									byte[] buffer = new byte[16 * 1024];
@@ -108,22 +94,15 @@ public class ServerSocketPlugin extends CordovaPlugin {
 									try {
 										while ((count = socket.getInputStream().read(buffer)) >= 0) {
 											byte[] data = buffer.length == count? buffer : Arrays.copyOfRange(buffer, 0, count);
-
-											JSONObject event = new JSONObject();
-											event.put("type", "data");
-											event.put("data", new JSONArray(bytes(data)));
-											event.put("socket", id);
-
-											dispatch(event);
+											dispatchData(id, bytes(data));
 										}
 
-										server_sockets.remove(server_sockets.indexOf(socket));
-										try { socket.close(); } finally {}
+										try {
+											socket.close();
+											server_sockets.remove(server_sockets.indexOf(socket));
+										} finally {}
 
-										JSONObject event = new JSONObject();
-										event.put("type", "close");
-										event.put("socket", id);
-										dispatch(event);
+										dispatchClosed(id);
 									} catch (Exception e) {
 										callbacks.error(e.toString());
 									}
@@ -153,22 +132,19 @@ public class ServerSocketPlugin extends CordovaPlugin {
 
 	private void close(CordovaArgs args, CallbackContext callbacks) throws JSONException {
 		int port = args.getInt(0);
-		if (this.servers.containsKey(port)) {
+		if (servers.containsKey(port)) {
 			try {
-				ServerSocket server = this.servers.get(port);
-				this.servers.remove(port);
+				ServerSocket server = servers.get(port);
+				servers.remove(port);
 				
-				for (Socket client : this.server_sockets.get(port)) {
+				for (Socket client : server_sockets.get(port)) {
 					try { client.close(); } finally {}
 				}
-				this.server_sockets.remove(port);
+				server_sockets.remove(port);
 
 				try { server.close(); } finally {}
 
-				JSONObject event = new JSONObject();
-				event.put("type", "close");
-				event.put("port", port);
-				dispatch(event);
+				dispatchClosed(port);
 
 				callbacks.success();
 			} catch (Exception e) {
@@ -216,11 +192,7 @@ public class ServerSocketPlugin extends CordovaPlugin {
 			server_sockets.remove( server_sockets.indexOf(socket) );
 			socket.close();
 
-			JSONObject event = new JSONObject();
-			event.put("type", "close");
-			event.put("socket", id);
-
-			dispatch(event);
+			dispatchClosed(id);
 
 			callbacks.success();
 		} catch (Exception e) {
@@ -228,8 +200,42 @@ public class ServerSocketPlugin extends CordovaPlugin {
 		}
 	}
 
-	private void dispatch(JSONObject event) {
-		this.webView.sendJavascript(String.format("window.ServerSocket.dispatch(%s);", event.toString()));
+	private void dispatchConnected(int port, String id, String host, int host_port) throws JSONException {
+		JSONObject payload = new JSONObject();
+		payload.put("type", "connection");
+		payload.put("port", port);
+		JSONObject data = new JSONObject();
+		data.put("id", id);
+		data.put("host", host);
+		data.put("port", host_port);
+		payload.put("data", data);
+		dispatch(payload);
+	}
+
+	private void dispatchClosed(int port) throws JSONException {
+		JSONObject payload = new JSONObject();
+		payload.put("type", "close");
+		payload.put("port", port);
+		dispatch(payload);
+	}
+
+	private void dispatchClosed(String id) throws JSONException {
+		JSONObject payload = new JSONObject();
+		payload.put("type", "close");
+		payload.put("socket", id);
+		dispatch(payload);
+	}
+
+	private void dispatchData(String id, List<Byte> data) throws JSONException {
+		JSONObject payload = new JSONObject();
+		payload.put("type", "data");
+		payload.put("data", new JSONArray(data));
+		payload.put("socket", id);
+		dispatch(payload);
+	}
+
+	private void dispatch(JSONObject payload) {
+		this.webView.sendJavascript(String.format("window.ServerSocket.dispatch(%s);", payload.toString()));
 	}
 
 	private String guid() {

@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" id="dev.gorky.cordovaserversocket" version="1.1.0">
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" id="dev.gorky.cordovaserversocket" version="1.2.0">
 	<name>ServerSockets</name>
 	<description>Cordova plugin for opening and handling TCP server sockets on Android.</description>
 
 	<js-module src="serversocket.js" name="ServerSocket">
 		<clobbers target="window.ServerSocket" />
+	</js-module>
+	<js-module src="socket.js" name="Socket">
+		<clobbers target="window.Socket" />
 	</js-module>
 
 	<platform name="android">
@@ -13,10 +16,14 @@
 			<feature name="ServerSockets">
 				<param name="android-package" value="dev.gorky.cordovaserversocket.ServerSocketPlugin" />
 			</feature>
+			<feature name="Sockets">
+				<param name="android-package" value="dev.gorky.cordovaserversocket.SocketPlugin" />
+			</feature>
 		</config-file>
 		<config-file target="AndroidManifest.xml" parent="/manifest">
 			<uses-permission android:name="android.permission.INTERNET" />
 		</config-file>
 		<source-file src="src/android/ServerSocketPlugin.java" target-dir="src/dev/gorky/cordovaserversocket" />
+		<source-file src="src/android/SocketPlugin.java" target-dir="src/dev/gorky/cordovaserversocket" />
 	</platform>
 </plugin>

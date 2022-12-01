@@ -1,5 +1,5 @@
 {
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"name": "dev.gorky.cordovaserversocket",
 	"cordova_name": "ServerSockets",
 	"description": "Cordova plugin for opening and handling TCP server sockets on Android.",
