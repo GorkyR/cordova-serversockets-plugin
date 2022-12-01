@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" id="dev.gorky.cordovaserversocket" version="1.0.0">
+	<name>ServerSockets</name>
+	<description>Cordova plugin for opening and handling TCP server sockets on Android.</description>
+
+	<js-module src="serversocket.js" name="ServerSocket">
+		<clobbers target="window.ServerSocket" />
+	</js-module>
+
+	<platform name="android">
+		<config-file target="res/xml/config.xml" parent="/*">
+			<feature name="ServerSockets">
+				<param name="android-package" value="dev.gorky.cordovaserversocket.ServerSocketPlugin" />
+			</feature>
+		</config-file>
+		<config-file target="AndroidManifest.xml" parent="/manifest">
+			<uses-permission android:name="android.permission.INTERNET" />
+		</config-file>
+		<source-file src="src/android/ServerSocketPlugin.java" target-dir="src/dev/gorky/cordovaserversocket" />
+	</platform>
+</plugin>
