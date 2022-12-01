@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" id="dev.gorky.cordovaserversocket" version="1.0.0">
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" id="dev.gorky.cordovaserversocket" version="1.1.0">
 	<name>ServerSockets</name>
 	<description>Cordova plugin for opening and handling TCP server sockets on Android.</description>
 

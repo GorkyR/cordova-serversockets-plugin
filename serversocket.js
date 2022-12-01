@@ -32,8 +32,20 @@ server.close()
 
 */
 
+ServerSocket.State = {}
+ServerSocket[(ServerSocket.State.CLOSED = 0)] = 'CLOSED'
+ServerSocket[(ServerSocket.State.OPENING = 1)] = 'OPENING'
+ServerSocket[(ServerSocket.State.LISTENING = 2)] = 'LISTENING'
+ServerSocket[(ServerSocket.State.CLOSING = 3)] = 'CLOSING'
+
+ServerSocketClient.State = {}
+ServerSocketClient.State[(ServerSocketClient.State.CLOSED = 0)] = 'CLOSED'
+ServerSocketClient.State[(ServerSocketClient.State.OPEN = 2)] = 'OPEN'
+ServerSocketClient.State[(ServerSocketClient.State.CLOSING = 3)] = 'CLOSING'
+
 function ServerSocket() {
 	this._port = null
+	this._state = ServerSocket.State.CLOSED
 	this.onConnection = null
 	this.onClose = null
 	this.onError = null
@@ -43,6 +55,7 @@ function ServerSocketClient(id, host, port) {
 	this.id = id
 	this.host = host
 	this.port = port
+	this._state = ServerSocketClient.State.OPEN
 	this.onData = null
 	this.onClose = null
 }
@@ -52,6 +65,7 @@ ServerSocket.prototype.listen = function (port, success, error) {
 	error ||= () => {}
 
 	this._port = null
+	this._state = ServerSocket.State.OPENING
 
 	const _this = this
 
@@ -75,9 +89,10 @@ ServerSocket.prototype.listen = function (port, success, error) {
 							socket.onData?.(data)
 							break
 						case 'close':
+							socket._state = ServerSocketClient.State.CLOSED
 							socket.onClose?.()
-							window.document.removeEventListener(SERVER_SOCKET_EVENT, socket_handler)
 							socket.id = null
+							window.document.removeEventListener(SERVER_SOCKET_EVENT, socket_handler)
 							break
 						default:
 							console.error(`[ServerSocketPlugin] unknown event type: ${payload.type}, socket: ${socket.id}`)
@@ -89,6 +104,7 @@ ServerSocket.prototype.listen = function (port, success, error) {
 			case 'close':
 				window.document.removeEventListener(SERVER_SOCKET_EVENT, handler)
 				_this._port = null
+				_this._state = ServerSocket.State.CLOSED
 				_this.onClose?.()
 				break
 			default:
@@ -99,10 +115,12 @@ ServerSocket.prototype.listen = function (port, success, error) {
 	exec(
 		() => {
 			window.document.addEventListener(SERVER_SOCKET_EVENT, handler)
+			_this._state = ServerSocket.State.LISTENING
 			_this._port = port
 			success()
 		},
 		(e) => {
+			_this._state = ServerSocket.State.CLOSED
 			_this.onError?.(e)
 			error(e)
 		},
@@ -115,13 +133,39 @@ ServerSocket.prototype.listen = function (port, success, error) {
 ServerSocket.prototype.close = function (success, error) {
 	success ||= () => {}
 	error ||= () => {}
-	if (this.port == null) error('[ServerSocketPlugin] cannot close server socket: was not listening')
-	else exec(success, error, SERVICE_NAME, 'close', [this.port])
+	if (this.state != ServerSocket.State.LISTENING) {
+		console.error('[ServerSocketPlugin] cannot close server socket: was not listening')
+		error('was not listening')
+	} else {
+		this._state = ServerSocket.State.CLOSING
+		exec(
+			() => {
+				this._port = null
+				this._state = ServerSocket.State.CLOSED
+				success()
+			},
+			(e) => {
+				this._state = ServerSocket.State.LISTENING
+				error(e)
+			},
+			SERVICE_NAME,
+			'close',
+			[this.port]
+		)
+	}
 }
 
 Object.defineProperty(ServerSocket.prototype, 'port', {
 	get: function () {
 		return this._port
+	},
+	enumerable: true,
+	configurable: true,
+})
+
+Object.defineProperty(ServerSocket.prototype, 'state', {
+	get: function () {
+		return this._state
 	},
 	enumerable: true,
 	configurable: true,
@@ -136,9 +180,34 @@ ServerSocketClient.prototype.write = function (data, success, error) {
 ServerSocketClient.prototype.close = function (success, error) {
 	success ||= () => {}
 	error ||= () => {}
-	if (this.id == null) console.error(`[ServerSocketPlugin] cannot close connection: already closed`)
-	else exec(success, error, SERVICE_NAME, 'close-client', [this.id])
+	if (this.state != ServerSocketClient.State.OPEN) {
+		console.error(`[ServerSocketPlugin] cannot close connection: already closed`)
+		error('already closed')
+	} else {
+		this._state = ServerSocketClient.State.CLOSING
+		exec(
+			() => {
+				this._state = ServerSocketClient.State.CLOSED
+				success()
+			},
+			(e) => {
+				this._state = ServerSocketClient.State.OPEN
+				error(e)
+			},
+			SERVICE_NAME,
+			'close-client',
+			[this.id]
+		)
+	}
 }
+
+Object.defineProperty(ServerSocketClient.prototype, 'state', {
+	get: function () {
+		return this._state
+	},
+	enumerable: true,
+	configurable: true,
+})
 
 ServerSocket.dispatch = function (payload) {
 	const event = window.document.createEvent('Events')
