@@ -9,7 +9,7 @@ server.onConnection = (socket) => {
 	console.debug('socket id:',   socket.id)
 	console.debug('socket host:', socket.host)
 	console.debug('socket port:', socket.port)
-	socket.onData = (data: Uint8Array) => {
+	socket.onData = (data) => {
 		const text = String.fromCharCodes(...data)
 		console.debug(text)
 	}
@@ -48,7 +48,6 @@ function ServerSocket() {
 	this._state = ServerSocket.State.CLOSED
 	this.onConnection = null
 	this.onClose = null
-	this.onError = null
 }
 
 function ServerSocketClient(id, host, port) {
@@ -63,6 +62,12 @@ function ServerSocketClient(id, host, port) {
 ServerSocket.prototype.listen = function (port, success, error) {
 	success ||= () => {}
 	error ||= () => {}
+
+	if (this.state != ServerSocket.State.CLOSED) {
+		console.error(`[ServerSocket] cannot open server socket: socket is not closed`)
+		error('not closed')
+		return
+	}
 
 	this._port = null
 	this._state = ServerSocket.State.OPENING
@@ -135,7 +140,7 @@ ServerSocket.prototype.close = function (success, error) {
 	error ||= () => {}
 	if (this.state != ServerSocket.State.LISTENING) {
 		console.error('[ServerSocketPlugin] cannot close server socket: was not listening')
-		error('was not listening')
+		error('not listening')
 	} else {
 		this._state = ServerSocket.State.CLOSING
 		exec(
