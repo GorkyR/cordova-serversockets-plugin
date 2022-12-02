@@ -48,30 +48,31 @@ public class ServerSocketPlugin extends CordovaPlugin {
 	private Map<String, Socket> sockets = new HashMap<String, Socket>();
 
 	private void listen(CordovaArgs args, CallbackContext callbacks) throws JSONException {
+		int port = args.getInt(0);
+
 		try {
-			int port = args.getInt(0);
 
 			if (servers.containsKey(port)) {
 				ServerSocket server = servers.get(port);
 				servers.remove(port);
 				
 				for (Socket socket : server_sockets.get(port)) {
-					try { socket.close(); } finally {}
+					try { socket.close(); } catch(Throwable _) {}
 				}
 				server_sockets.remove(port);
 
-				try { server.close(); } finally {}
+				try { server.close(); } catch(Throwable _) {}
 
 				dispatchClosed(port);
 			}
 
 			ServerSocket server = new ServerSocket(port);
-			this.servers.put(port, server);
+			servers.put(port, server);
 
 			List<Socket> server_sockets = new ArrayList<Socket>();
 			this.server_sockets.put(port, server_sockets);
 
-			this.executor.submit(new Runnable() {
+			executor.submit(new Runnable() {
 				private ExecutorService _executor = Executors.newSingleThreadExecutor();
 
 				@Override
@@ -100,11 +101,11 @@ public class ServerSocketPlugin extends CordovaPlugin {
 										try {
 											socket.close();
 											server_sockets.remove(server_sockets.indexOf(socket));
-										} finally {}
+										} catch(Throwable _) {}
 
 										dispatchClosed(id);
 									} catch (Exception e) {
-										callbacks.error(e.toString());
+										try { dispatchError(id, String.format("on client socket(%d) [%s] read: %s", port, id, e.toString())); } catch(Throwable _) {}
 									}
 								}
 
@@ -118,14 +119,14 @@ public class ServerSocketPlugin extends CordovaPlugin {
 							});
 						}
 					} catch (Exception e) {
-						callbacks.error(e.toString());
+						try { dispatchError(port, String.format("on server socket(%d) accept: %s", port, e.toString())); } catch(Throwable _) {}
 					}
 				}
 			});
 
 			callbacks.success();
 		} catch (Exception e) {
-			callbacks.error(e.toString());
+			callbacks.error(String.format("on server socket(%d) listen: %s", port, e.toString()));
 		}
 
 	}
@@ -138,20 +139,20 @@ public class ServerSocketPlugin extends CordovaPlugin {
 				servers.remove(port);
 				
 				for (Socket client : server_sockets.get(port)) {
-					try { client.close(); } finally {}
+					try { client.close(); } catch(Throwable _) {}
 				}
 				server_sockets.remove(port);
 
-				try { server.close(); } finally {}
+				try { server.close(); } catch(Throwable _) {}
 
 				dispatchClosed(port);
 
 				callbacks.success();
 			} catch (Exception e) {
-				callbacks.error(e.toString());
+				callbacks.error(String.format("on server socket(%d) close: %s", port, e.toString()));
 			}
 		} else {
-			callbacks.error("[ServerSocketPlugin] Server socket was not open.");
+			callbacks.error(String.format("on server socket(%d) close: socket was not open", port));
 		}
 	}
 
@@ -169,7 +170,7 @@ public class ServerSocketPlugin extends CordovaPlugin {
 			socket.getOutputStream().write(buffer);
 			callbacks.success();
 		} catch(Exception e) {
-			callbacks.error(e.toString());
+			callbacks.error(String.format("on client socket [%s] write: %s", id, e.toString()));
 		}
 	}
 
@@ -180,7 +181,7 @@ public class ServerSocketPlugin extends CordovaPlugin {
 			socket.shutdownOutput();
 			callbacks.success();
 		} catch (Exception e) {
-			callbacks.error(e.toString());
+			callbacks.error(String.format("on client socket [%s] shutdown: %s", id, e.toString()));
 		}
 	}
 
@@ -196,7 +197,7 @@ public class ServerSocketPlugin extends CordovaPlugin {
 
 			callbacks.success();
 		} catch (Exception e) {
-			callbacks.error(e.toString());
+			callbacks.error(String.format("on client socket [%s] shutdown: %s", id, e.toString()));
 		}
 	}
 
@@ -231,6 +232,22 @@ public class ServerSocketPlugin extends CordovaPlugin {
 		payload.put("type", "data");
 		payload.put("data", new JSONArray(data));
 		payload.put("socket", id);
+		dispatch(payload);
+	}
+
+	private void dispatchError(int port, String error) throws JSONException {
+		JSONObject payload = new JSONObject();
+		payload.put("type", "error");
+		payload.put("port", port);
+		payload.put("error", error);
+		dispatch(payload);
+	}
+
+	private void dispatchError(String id, String error) throws JSONException {
+		JSONObject payload = new JSONObject();
+		payload.put("type", "error");
+		payload.put("socket", id);
+		payload.put("error", error);
 		dispatch(payload);
 	}
 

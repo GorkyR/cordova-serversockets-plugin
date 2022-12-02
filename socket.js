@@ -45,6 +45,7 @@ function Socket() {
 	this.onOpen = null
 	this.onData = null
 	this.onClose = null
+	this.onError = null
 }
 
 Socket.prototype.connect = function (host, port, success, error) {
@@ -82,6 +83,9 @@ Socket.prototype.connect = function (host, port, success, error) {
 				_this._port = null
 				_this._state = Socket.State.CLOSED
 				_this.onClose?.()
+				break
+			case 'error':
+				_this.onError?.(payload.error)
 				break
 			default:
 				console.error(`[SocketPlugin] unknown event type: ${payload.type}`)

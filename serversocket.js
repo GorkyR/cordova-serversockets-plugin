@@ -48,6 +48,7 @@ function ServerSocket() {
 	this._state = ServerSocket.State.CLOSED
 	this.onConnection = null
 	this.onClose = null
+	this.onError = null
 }
 
 function ServerSocketClient(id, host, port) {
@@ -57,6 +58,7 @@ function ServerSocketClient(id, host, port) {
 	this._state = ServerSocketClient.State.OPEN
 	this.onData = null
 	this.onClose = null
+	this.onError = null
 }
 
 ServerSocket.prototype.listen = function (port, success, error) {
@@ -99,6 +101,9 @@ ServerSocket.prototype.listen = function (port, success, error) {
 							socket.id = null
 							window.document.removeEventListener(SERVER_SOCKET_EVENT, socket_handler)
 							break
+						case 'error':
+							socket.onError?.(payload.error)
+							break
 						default:
 							console.error(`[ServerSocketPlugin] unknown event type: ${payload.type}, socket: ${socket.id}`)
 					}
@@ -111,6 +116,9 @@ ServerSocket.prototype.listen = function (port, success, error) {
 				_this._port = null
 				_this._state = ServerSocket.State.CLOSED
 				_this.onClose?.()
+				break
+			case 'error':
+				_this.onError?.(payload.error)
 				break
 			default:
 				console.error(`[ServerSocketPlugin] unknown event type: ${payload.type}`)

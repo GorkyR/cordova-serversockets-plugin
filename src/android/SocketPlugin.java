@@ -44,10 +44,11 @@ public class SocketPlugin extends CordovaPlugin {
 	private Map<String, Socket> sockets = new HashMap<String, Socket>();
 
 	private void connect(CordovaArgs args, CallbackContext callbacks) throws JSONException {
+		String id = args.getString(0);
+		String host = args.getString(1);
+		int port = args.getInt(2);
+		
 		try {
-			String id = args.getString(0);
-			String host = args.getString(1);
-			int port = args.getInt(2);
 
 			Socket socket = new Socket(host, port);
 			sockets.put(id, socket);
@@ -67,11 +68,11 @@ public class SocketPlugin extends CordovaPlugin {
 						try {
 							socket.close();
 							sockets.remove(id);
-						} finally {}
+						} catch(Throwable _) {}
 
 						dispatchClosed(id);
 					} catch (Exception e) {
-						callbacks.error(e.toString());
+						try { dispatchError(id, String.format("on socket [%s] read:", id, e.toString())); } catch(Throwable _) {}
 					}
 				}
 
@@ -86,7 +87,7 @@ public class SocketPlugin extends CordovaPlugin {
 
 			callbacks.success();
 		} catch (Exception e) {
-			callbacks.error(e.toString());
+			callbacks.error(String.format("on socket [%s] connect(%s, %d): %s", id, host, port, e.toString()));
 		}
 	}
 
@@ -104,18 +105,18 @@ public class SocketPlugin extends CordovaPlugin {
 			socket.getOutputStream().write(buffer);
 			callbacks.success();
 		} catch(Exception e) {
-			callbacks.error(e.toString());
+			callbacks.error(String.format("on socket [%s] write: %s", id, e.toString()));
 		}
 	}
 
 	private void shutdown(CordovaArgs args, CallbackContext callbacks) throws JSONException {
 		String id = args.getString(0);
-		Socket socket = this.sockets.get(id);
 		try {
+			Socket socket = this.sockets.get(id);
 			socket.shutdownOutput();
 			callbacks.success();
 		} catch (Exception e) {
-			callbacks.error(e.toString());
+			callbacks.error(String.format("on socket [%s] shutdown: %s", id, e.toString()));
 		}
 	}
 	
@@ -128,16 +129,16 @@ public class SocketPlugin extends CordovaPlugin {
 				try {
 					socket.close();
 					this.sockets.remove(id);
-				} finally {}
+				} catch(Throwable _) {}
 
 				dispatchClosed(id);
 
 				callbacks.success();
 			} catch (Exception e) {
-				callbacks.error(e.toString());
+				callbacks.error(String.format("on socket [%s] close: %s", id, e.toString()));
 			}
 		} else {
-			callbacks.error("[SocketPlugin] Socket was not open.");
+			callbacks.error(String.format("on socket [%s] close: socket was not open", id));
 		}
 	}
 
@@ -161,6 +162,14 @@ public class SocketPlugin extends CordovaPlugin {
 		payload.put("type", "data");
 		payload.put("id", id);
 		payload.put("data", new JSONArray(data));
+		dispatch(payload);
+	}
+
+	private void dispatchError(String id, String error) throws JSONException {
+		JSONObject payload = new JSONObject();
+		payload.put("type", "error");
+		payload.put("id", id);
+		payload.put("error", error);
 		dispatch(payload);
 	}
 
